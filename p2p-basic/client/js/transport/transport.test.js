@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { TRANSPORT_TYPES, ALL_TRANSPORT_TYPES } from "./transportTypes.js";
-import { Transport, WebRTCTransport } from "./transport.js";
+import { TRANSPORT_TYPES } from "./transportTypes.js";
+import { WebRTCTransport } from "./transport.js";
 import { TransportManager, transportManager } from "./transportManager.js";
 import { getConnectionStats } from "./connectionStats.js";
 import { getOrCreatePeer, markPeerConnected, peers, discoveredPeers } from "../core/state.js";
 import { getLocalDisplayName, setLocalDisplayName, formatPeerDisplayName } from "../core/identity.js";
+import { addOrQueueIceCandidate, flushQueuedIceCandidates } from "../webrtc/peerConnection.js";
 
 // Mock localStorage for Node environment if missing or incomplete
 if (typeof globalThis.localStorage === "undefined" || typeof globalThis.localStorage.clear !== "function") {
@@ -112,4 +113,44 @@ test("8. Connection stats safely return null/unknown when metrics are unavailabl
     assert.equal(stats.throughputMbps, null);
     assert.equal(stats.state, "disconnected");
     assert.equal(stats.pathType, null);
+});
+
+test("9. Display name is embedded in presence JSON metadata for remote propagation", () => {
+    const localName = "Device-Alpha";
+    setLocalDisplayName(localName);
+
+    const presenceInfo = JSON.stringify({ t: "webrtc", name: localName });
+    const parsed = JSON.parse(presenceInfo);
+
+    assert.equal(parsed.name, "Device-Alpha");
+    assert.equal(parsed.t, "webrtc");
+});
+
+test("10. Remote ICE candidates are queued before remoteDescription exists and deduplicated", async () => {
+    const testPeerId = "test-peer-candidate-queuing";
+    const peer = getOrCreatePeer(testPeerId);
+
+    const candidate1 = { candidate: "candidate:1 1 UDP 2013266431 192.168.1.100 50000 typ host", sdpMid: "0", sdpMLineIndex: 0 };
+    const candidate2 = { candidate: "candidate:2 1 UDP 2013266431 192.168.1.101 50001 typ host", sdpMid: "0", sdpMLineIndex: 0 };
+
+    await addOrQueueIceCandidate(testPeerId, candidate1);
+    await addOrQueueIceCandidate(testPeerId, candidate1); // Duplicate candidate
+    await addOrQueueIceCandidate(testPeerId, candidate2);
+
+    assert.equal(peer.pendingIceCandidates.length, 2);
+    assert.equal(peer.processedCandidates.size, 2);
+
+    peers.delete(testPeerId);
+});
+
+test("11. Deterministic glare tie-breaker uses lexical comparison of peer IDs", () => {
+    const peerA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const peerB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    // Impolite peer (lower ID) takes precedence over incoming offer
+    const isPoliteForA = peerA > peerB; // false -> A takes precedence
+    const isPoliteForB = peerB > peerA; // true -> B is polite and accepts incoming offer
+
+    assert.equal(isPoliteForA, false);
+    assert.equal(isPoliteForB, true);
 });

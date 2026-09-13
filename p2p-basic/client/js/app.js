@@ -393,14 +393,17 @@ function setupDisplayNameEditor() {
     const input = document.getElementById("localDisplayNameInput");
     if (!input) return;
     input.value = getLocalDisplayName();
-    input.addEventListener("input", () => {
-        setLocalDisplayName(input.value);
+    const handleNameChange = () => {
+        const newName = setLocalDisplayName(input.value);
         refreshPeerList();
-    });
-    input.addEventListener("change", () => {
-        setLocalDisplayName(input.value);
-        refreshPeerList();
-    });
+        const myId = getMyId();
+        if (myId) {
+            const presenceInfo = JSON.stringify({ t: "webrtc", name: newName });
+            sendSignaling({ type: "register", peerId: myId, info: presenceInfo });
+        }
+    };
+    input.addEventListener("input", handleNameChange);
+    input.addEventListener("change", handleNameChange);
 }
 
 function startPeriodicStats() {

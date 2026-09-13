@@ -13,7 +13,7 @@ export function setupDataChannel(targetId, dataChannel, onPeerListUpdate) {
     dataChannel.binaryType = "arraybuffer";
 
     dataChannel.onopen = async () => {
-        console.log("Connected to peer:", targetId);
+        console.log(`[DATA_CHANNEL_OPEN] DataChannel opened for peer ${targetId} [label: ${dataChannel.label}]`);
         const { becameActive } = markPeerConnected(targetId);
         if (becameActive || getActivePeerId() === targetId) {
             updateStatus("Connected");
@@ -27,7 +27,7 @@ export function setupDataChannel(targetId, dataChannel, onPeerListUpdate) {
     };
 
     dataChannel.onclose = async () => {
-        console.log("Data channel closed with peer:", targetId);
+        console.log(`[DATA_CHANNEL_CLOSE] DataChannel closed for peer ${targetId}`);
         if (peer.transfer.state !== "idle") {
             await resetTransfer(targetId, "Data channel closed");
         }
