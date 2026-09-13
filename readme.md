@@ -38,6 +38,26 @@ A secure, decentralized peer-to-peer chat and file-sharing web application built
     └──────────────────────────────────┘
 ```
 
+## Transport Architecture & Native Application Readiness
+
+P2P Beam currently uses **WebRTC** as its primary web transport implementation. The underlying network architecture is designed to be **transport-agnostic** through the `TransportManager` abstraction (`js/transport/`).
+
+```
+Application (Chat, File Transfer, Security)
+       │
+       ▼
+Transport Manager
+       │
+       ├── WebRTC Transport (Active Web Transport)
+       ├── Wi-Fi Direct Transport (Future Native)
+       ├── Bluetooth Transport (Future Native)
+       ├── Wi-Fi Aware Transport (Future Native)
+       └── Platform-specific Transports
+```
+
+> **Note on Native Application Readiness**:
+> In the current web application context, **WebRTC** is the sole active and registered transport. Future native mobile applications (Android / iOS) can register platform-specific physical transports (such as Wi-Fi Direct, Bluetooth LE, Wi-Fi Aware, NFC bootstrap) behind the exact same `TransportManager` interface without altering E2EE encryption, identity verification, or file transfer protocols.
+
 ## Features
 
 - **Peer-to-Peer Connections** — WebRTC Data Channels for direct communication; no server relay of user data

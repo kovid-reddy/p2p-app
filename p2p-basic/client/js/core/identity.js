@@ -93,3 +93,44 @@ export function isIdentityReady() {
     return Boolean(keyPair && publicKeyString && myId && ecdhKeyPair && ecdhPublicKeyString);
 }
 
+const LOCAL_DISPLAY_NAME_KEY = "p2p_beam_display_name";
+
+export function getLocalDisplayName() {
+    try {
+        if (typeof localStorage !== "undefined") {
+            const saved = localStorage.getItem(LOCAL_DISPLAY_NAME_KEY);
+            if (saved && saved.trim()) return saved.trim();
+        }
+    } catch {}
+    return "My Device";
+}
+
+export function setLocalDisplayName(name) {
+    const cleaned = (name || "").trim();
+    try {
+        if (typeof localStorage !== "undefined") {
+            if (cleaned) {
+                localStorage.setItem(LOCAL_DISPLAY_NAME_KEY, cleaned);
+            } else {
+                localStorage.removeItem(LOCAL_DISPLAY_NAME_KEY);
+            }
+        }
+    } catch {}
+    return cleaned || "My Device";
+}
+
+/**
+ * Format a peer's display label.
+ * Prioritizes custom displayName if provided; falls back to short Peer ID or "Anonymous Peer".
+ */
+export function formatPeerDisplayName(peerId, customDisplayName = null) {
+    if (customDisplayName && customDisplayName.trim()) {
+        return customDisplayName.trim();
+    }
+    if (peerId && peerId.length >= 8) {
+        return `Peer ${peerId.slice(0, 6)}`;
+    }
+    return "Anonymous Peer";
+}
+
+

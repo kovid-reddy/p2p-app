@@ -1003,3 +1003,107 @@ html, body {
     padding: 0 12px;
   }
 }
+
+/* ─── Display Name & Transport UI Additions ──────────────────────────────────── */
+
+.display-name-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-subtle);
+  padding: 4px 10px;
+  border-radius: 8px;
+  margin-right: 6px;
+}
+
+.display-name-input {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 500;
+  outline: none;
+  width: 110px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.display-name-input:hover,
+.display-name-input:focus {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.active-peer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transport-indicator-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #60a5fa;
+  background: rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.transport-icon {
+  font-size: 0.72rem;
+}
+
+.conn-stats-pill {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 1px 7px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+.peer-security-details {
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+
+.security-info-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.security-subtext {
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.security-verified-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.security-verified-badge.verified-yes {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.security-verified-badge.verified-no {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+

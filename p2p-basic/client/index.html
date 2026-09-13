@@ -28,6 +28,10 @@
       </div>
 
       <div class="header-identity">
+        <div class="display-name-card" id="displayNameCard" title="Edit your display name">
+          <span class="identity-label">Name:</span>
+          <input type="text" id="localDisplayNameInput" class="display-name-input" placeholder="My Device" maxlength="32" />
+        </div>
         <div class="identity-card" id="identityCard" title="Click to copy your Peer ID">
           <span class="identity-label">My ID:</span>
           <code class="identity-id" id="localPeerIdDisplay">Generating...</code>
@@ -74,11 +78,24 @@
               <span id="activePeerInitial">?</span>
             </div>
             <div class="active-peer-info">
-              <h4 id="activePeerTitle">No peer selected</h4>
+              <div class="active-peer-title-row">
+                <h4 id="activePeerTitle">No peer selected</h4>
+                <span class="transport-indicator-badge" id="activeTransportBadge" style="display: none;">
+                  <span class="transport-icon">⚡</span>
+                  <span id="activeTransportName">WebRTC</span>
+                </span>
+              </div>
               <div class="peer-conn-status">
                 <span class="status-dot dot-offline" id="activePeerDot"></span>
                 <span id="status">Not connected</span>
+                <span class="conn-stats-pill" id="activeConnStats" style="display: none;"></span>
               </div>
+            </div>
+          </div>
+          <div class="peer-security-details" id="peerSecurityDetails" style="display: none;">
+            <div class="security-info-box">
+              <span class="security-subtext" id="activePeerFullId">Peer ID: --</span>
+              <span class="security-verified-badge" id="activePeerVerifiedBadge">Verified: No</span>
             </div>
           </div>
         </div>

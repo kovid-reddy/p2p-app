@@ -79,3 +79,14 @@ bucket-policy.json
 # Local deployment/runtime config
 p2p-basic/client/runtime-config.js
 
+# Private keys / certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# AWS credentials
+.aws/
+
+# Local artifacts
+onboarding_analysis.html

@@ -21,6 +21,8 @@ export function setActivePeerId(id) {
 export function markPeerConnected(peerId, info = "webrtc") {
     const peer = getOrCreatePeer(peerId);
     peer.networkState = "connected";
+    peer.transports = ["webrtc"];
+    peer.activeTransport = "webrtc";
 
     if (!discoveredPeers.has(peerId)) {
         discoveredPeers.set(peerId, { peerId, info });
@@ -86,6 +88,9 @@ export function getOrCreatePeer(peerId) {
     if (!peer) {
         peer = {
             peerId: peerId,
+            displayName: null,
+            transports: ["webrtc"],
+            activeTransport: "webrtc",
             connection: null,
             dataChannel: null,
             networkState: "discovered",

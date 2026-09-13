@@ -1,7 +1,7 @@
-import { generateIdentity, getMyId } from "./core/identity.js";
+import { generateIdentity, getMyId, getLocalDisplayName, setLocalDisplayName, formatPeerDisplayName } from "./core/identity.js";
 import { getActivePeerId, setActivePeerId, getPeer } from "./core/state.js";
 import { initSignaling, sendSignaling } from "./signaling/signaling.js";
-import { connectToPeer } from "./webrtc/peerConnection.js";
+import { transportManager } from "./transport/transportManager.js";
 import { sendChatMessage } from "./chat/sendMessage.js";
 import { initiateSendFile, cancelActiveTransfer } from "./transfer/sendFile.js";
 import { acceptIncomingFile, rejectIncomingFile } from "./transfer/receiveFile.js";
@@ -9,6 +9,8 @@ import { renderPeerList } from "./ui/peerListUI.js";
 import { refreshTransferView, updateStatus } from "./ui/transferUI.js";
 import { getChatMessageInput, renderConversation, updateComposerState } from "./ui/chatUI.js";
 import { runCryptoTests } from "./tests/cryptoTests.js";
+
+let statsIntervalTimer = null;
 
 // ─── Peer List ────────────────────────────────────────────────────────────────
 
@@ -26,12 +28,15 @@ function handlePeerClick(peerId) {
         peer.chat.unreadCount = 0;
     }
 
-    // Initiate WebRTC connection if not yet established
+    // Initiate connection via TransportManager if not yet established
     if (!peer || !peer.connection || peer.connection.connectionState === "closed" || peer.connection.connectionState === "failed") {
-        connectToPeer(peerId, sendSignaling, () => {
-            refreshPeerList();
-            updateActivePeerHeader(peerId);
-            updateComposerState(peerId);
+        transportManager.connect(peerId, {
+            sendSignaling,
+            onPeerListUpdate: () => {
+                refreshPeerList();
+                updateActivePeerHeader(peerId);
+                updateComposerState(peerId);
+            }
         });
     }
 
@@ -52,24 +57,53 @@ function handlePeerClick(peerId) {
 
 // ─── Active Peer Header ────────────────────────────────────────────────────────
 
-function updateActivePeerHeader(peerId) {
+async function updateActivePeerHeader(peerId) {
     const titleEl = document.getElementById("activePeerTitle");
     const dotEl = document.getElementById("activePeerDot");
     const avatarSpan = document.getElementById("activePeerInitial");
+    const transportBadge = document.getElementById("activeTransportBadge");
+    const transportName = document.getElementById("activeTransportName");
+    const connStatsPill = document.getElementById("activeConnStats");
+    const securityDetailsBox = document.getElementById("peerSecurityDetails");
+    const fullIdSpan = document.getElementById("activePeerFullId");
+    const verifiedBadge = document.getElementById("activePeerVerifiedBadge");
 
     if (!peerId) {
         if (titleEl) titleEl.innerText = "No peer selected";
-        if (dotEl) { dotEl.className = "status-dot dot-offline"; }
+        if (dotEl) dotEl.className = "status-dot dot-offline";
         if (avatarSpan) avatarSpan.innerText = "?";
+        if (transportBadge) transportBadge.style.display = "none";
+        if (connStatsPill) connStatsPill.style.display = "none";
+        if (securityDetailsBox) securityDetailsBox.style.display = "none";
         updateStatus("Not connected");
         return;
     }
 
-    const shortId = `${peerId.slice(0, 6)}...${peerId.slice(-4)}`;
-    if (titleEl) titleEl.innerText = shortId;
-    if (avatarSpan) avatarSpan.innerText = peerId.slice(0, 2).toUpperCase();
-
     const peer = getPeer(peerId);
+    const displayName = formatPeerDisplayName(peerId, peer?.displayName);
+
+    if (titleEl) titleEl.innerText = displayName;
+    if (avatarSpan) avatarSpan.innerText = displayName.slice(0, 2).toUpperCase();
+
+    // Active Transport Badge
+    const activeTransport = peer?.activeTransport || "webrtc";
+    if (transportBadge && transportName) {
+        transportBadge.style.display = "inline-flex";
+        transportName.innerText = activeTransport.toUpperCase();
+    }
+
+    // Peer Security & Identity Verification Details
+    if (securityDetailsBox) {
+        securityDetailsBox.style.display = "block";
+        if (fullIdSpan) fullIdSpan.innerText = `Peer ID: ${peerId}`;
+        const isVerified = Boolean(peer?.crypto?.handshakeComplete && peer?.crypto?.sessionKey);
+        if (verifiedBadge) {
+            verifiedBadge.innerText = isVerified ? "Verified: Yes" : "Verified: No";
+            verifiedBadge.className = `security-verified-badge ${isVerified ? "verified-yes" : "verified-no"}`;
+        }
+    }
+
+    // Network State & Status
     if (peer && peer.dataChannel && peer.dataChannel.readyState === "open") {
         if (dotEl) dotEl.className = "status-dot dot-online";
         updateStatus("Connected");
@@ -87,6 +121,25 @@ function updateActivePeerHeader(peerId) {
     } else {
         if (dotEl) dotEl.className = "status-dot dot-offline";
         updateStatus("Discovered — click to connect");
+    }
+
+    // Connection Statistics (Latency / Throughput)
+    if (connStatsPill) {
+        const stats = await transportManager.getStats(peerId);
+        if (stats && stats.state === "connected") {
+            const parts = [];
+            if (stats.latencyMs !== null) parts.push(`${stats.latencyMs} ms`);
+            if (stats.throughputMbps !== null) parts.push(`${stats.throughputMbps} Mbps`);
+            if (parts.length > 0) {
+                connStatsPill.style.display = "inline-block";
+                connStatsPill.innerText = parts.join(" · ");
+            } else {
+                connStatsPill.style.display = "inline-block";
+                connStatsPill.innerText = "Connected";
+            }
+        } else {
+            connStatsPill.style.display = "none";
+        }
     }
 }
 
@@ -336,6 +389,30 @@ if (typeof window !== "undefined") {
     window.runCryptoTests = runCryptoTests;
 }
 
+function setupDisplayNameEditor() {
+    const input = document.getElementById("localDisplayNameInput");
+    if (!input) return;
+    input.value = getLocalDisplayName();
+    input.addEventListener("input", () => {
+        setLocalDisplayName(input.value);
+        refreshPeerList();
+    });
+    input.addEventListener("change", () => {
+        setLocalDisplayName(input.value);
+        refreshPeerList();
+    });
+}
+
+function startPeriodicStats() {
+    if (statsIntervalTimer) clearInterval(statsIntervalTimer);
+    statsIntervalTimer = setInterval(() => {
+        const activePeerId = getActivePeerId();
+        if (activePeerId) {
+            updateActivePeerHeader(activePeerId);
+        }
+    }, 2000);
+}
+
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 async function bootstrap() {
@@ -349,6 +426,7 @@ async function bootstrap() {
     }
 
     // Initial UI state
+    setupDisplayNameEditor();
     updateComposerState(null);
     renderConversation(null);
     updateActivePeerHeader(null);
@@ -360,6 +438,7 @@ async function bootstrap() {
     setupDragAndDrop();
     setupComposer();
     setupTransferButtons();
+    startPeriodicStats();
 
     // Start signaling
     initSignaling({

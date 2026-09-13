@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test p2p-basic/aws-signaling/app.test.js p2p-basic/client/js/core/state.test.js p2p-basic/client/js/transfer/chunkSizing.test.js",
+    "test": "node --test p2p-basic/aws-signaling/app.test.js p2p-basic/client/js/core/state.test.js p2p-basic/client/js/transfer/chunkSizing.test.js p2p-basic/client/js/transport/transport.test.js",
     "start": "node p2p-basic/server/server.js",
     "sam:validate": "sam validate --template infrastructure/template.yaml",
     "sam:build": "sam build --template-file infrastructure/template.yaml",

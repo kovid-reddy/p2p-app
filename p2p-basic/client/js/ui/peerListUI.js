@@ -1,5 +1,5 @@
 import { discoveredPeers, peers, getActivePeerId } from "../core/state.js";
-import { getMyId } from "../core/identity.js";
+import { getMyId, formatPeerDisplayName } from "../core/identity.js";
 
 export function renderPeerList(onPeerClick) {
     const container = document.getElementById("peerList");
@@ -24,6 +24,7 @@ export function renderPeerList(onPeerClick) {
         btn.setAttribute("aria-label", `Peer ${peerId.slice(0, 8)}`);
 
         const peer = peers.get(peerId);
+        const displayName = formatPeerDisplayName(peerId, peer?.displayName || info?.displayName);
         let dotClass = "dot-offline";
         let statusText = "Online";
 
@@ -50,13 +51,12 @@ export function renderPeerList(onPeerClick) {
             ? `<span class="unread-badge">${unreadCount}</span>`
             : "";
 
-        const shortId = `${peerId.slice(0, 6)}...${peerId.slice(-4)}`;
-        const avatarInitial = peerId.slice(0, 2).toUpperCase();
+        const avatarInitial = (displayName || peerId).slice(0, 2).toUpperCase();
 
         btn.innerHTML = `
             <div class="peer-avatar">${avatarInitial}</div>
             <div class="peer-details">
-                <div class="peer-id-text" title="${peerId}">${shortId}</div>
+                <div class="peer-id-text" title="Peer ID: ${peerId}">${displayName}</div>
                 <div class="peer-substatus">
                     <span class="status-dot ${dotClass}"></span>
                     <span>${statusText}</span>
