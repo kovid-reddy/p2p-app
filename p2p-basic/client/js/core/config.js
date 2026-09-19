@@ -4,13 +4,56 @@
  * deployments. */
 const runtimeConfig = (typeof window !== "undefined" && (window.P2P_CONFIG || window.ENV)) || {};
 
-function configuredIceServers() {
-    if (Array.isArray(runtimeConfig.ICE_SERVERS)) return runtimeConfig.ICE_SERVERS;
+const DEFAULT_STUN_SERVER = Object.freeze({ urls: "stun:stun.l.google.com:19302" });
 
-    // STUN is public discovery infrastructure, not a credential. No TURN
-    // server is supplied by default; production must inject short-lived TURN
-    // credentials through runtime configuration.
-    return [{ urls: "stun:stun.l.google.com:19302" }];
+export function validateAndFilterIceServers(rawServers) {
+    if (!Array.isArray(rawServers) || rawServers.length === 0) {
+        return [DEFAULT_STUN_SERVER];
+    }
+
+    const validServers = [];
+
+    for (const server of rawServers) {
+        if (!server || typeof server !== "object") continue;
+
+        const urls = Array.isArray(server.urls)
+            ? server.urls.filter((u) => typeof u === "string" && u.trim().length > 0)
+            : (typeof server.urls === "string" && server.urls.trim().length > 0 ? [server.urls.trim()] : []);
+
+        if (urls.length === 0) continue;
+
+        const hasTurnUrl = urls.some((u) => u.startsWith("turn:") || u.startsWith("turns:"));
+
+        if (hasTurnUrl) {
+            const username = typeof server.username === "string" ? server.username.trim() : "";
+            const credential = typeof server.credential === "string" ? server.credential.trim() : "";
+
+            if (!username || !credential) {
+                console.warn("[ICE_CONFIG] Ignoring incomplete TURN server configuration (missing username or credential)");
+                continue;
+            }
+
+            validServers.push({
+                urls: urls.length === 1 ? urls[0] : urls,
+                username: username,
+                credential: credential
+            });
+        } else {
+            validServers.push({
+                urls: urls.length === 1 ? urls[0] : urls
+            });
+        }
+    }
+
+    if (validServers.length === 0) {
+        return [DEFAULT_STUN_SERVER];
+    }
+
+    return validServers;
+}
+
+export function configuredIceServers() {
+    return validateAndFilterIceServers(runtimeConfig.ICE_SERVERS);
 }
 
 function resolveSignalingUrl() {
@@ -42,5 +85,7 @@ export const CONFIG = Object.freeze({
     SIGNALING_BACKEND: runtimeConfig.SIGNALING_BACKEND || "node",
     CHUNK_SIZE: 256 * 1024,
     BUFFERED_AMOUNT_LOW_THRESHOLD: 4 * 1024 * 1024,
-    iceServers: configuredIceServers()
+    get iceServers() {
+        return configuredIceServers();
+    }
 });

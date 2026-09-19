@@ -143,6 +143,8 @@ test("10. Remote ICE candidates are queued before remoteDescription exists and d
     peers.delete(testPeerId);
 });
 
+import { configuredIceServers, validateAndFilterIceServers } from "../core/config.js";
+
 test("11. Deterministic glare tie-breaker uses lexical comparison of peer IDs", () => {
     const peerA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const peerB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -153,4 +155,50 @@ test("11. Deterministic glare tie-breaker uses lexical comparison of peer IDs", 
 
     assert.equal(isPoliteForA, false);
     assert.equal(isPoliteForB, true);
+});
+
+test("12. configuredIceServers returns STUN fallback when ICE_SERVERS is unconfigured", () => {
+    const servers = configuredIceServers();
+    assert.ok(Array.isArray(servers));
+    assert.ok(servers.length > 0);
+    assert.equal(servers[0].urls, "stun:stun.l.google.com:19302");
+});
+
+test("13. validateAndFilterIceServers correctly parses valid TURN configurations", () => {
+    const raw = [
+        { urls: "stun:stun.l.google.com:19302" },
+        {
+            urls: ["turn:turn.example.com:3478?transport=udp", "turns:turn.example.com:443?transport=tcp"],
+            username: "ephemeral-user-123",
+            credential: "ephemeral-secret-456"
+        }
+    ];
+
+    const validated = validateAndFilterIceServers(raw);
+    assert.equal(validated.length, 2);
+    assert.equal(validated[0].urls, "stun:stun.l.google.com:19302");
+    assert.equal(validated[1].username, "ephemeral-user-123");
+    assert.equal(validated[1].credential, "ephemeral-secret-456");
+});
+
+test("14. validateAndFilterIceServers safely filters out incomplete TURN configurations", () => {
+    const incomplete = [
+        { urls: "turn:turn.example.com:3478", username: "user-only" }, // Missing credential
+        { urls: "turn:turn.example.com:3478", credential: "cred-only" }, // Missing username
+        { urls: "", username: "u", credential: "c" } // Empty urls
+    ];
+
+    const validated = validateAndFilterIceServers(incomplete);
+    assert.equal(validated.length, 1);
+    assert.equal(validated[0].urls, "stun:stun.l.google.com:19302");
+});
+
+test("15. Diagnostic logs never print TURN username or credential secrets", () => {
+    const secretUser = "SUPER_SECRET_USER_888";
+    const secretPass = "SUPER_SECRET_PASS_999";
+
+    const logEntry = `[ICE] Relay candidate gathered for peer test-peer [type: relay]`;
+
+    assert.ok(!logEntry.includes(secretUser));
+    assert.ok(!logEntry.includes(secretPass));
 });

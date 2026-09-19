@@ -18,10 +18,14 @@ export async function logSelectedCandidatePair(pc, targetId) {
                 if (report.state === "succeeded" || report.selected || report.nominated) {
                     const localCandidate = stats.get(report.localCandidateId);
                     const remoteCandidate = stats.get(report.remoteCandidateId);
+                    const localType = localCandidate?.candidateType || "unknown";
+                    const remoteType = remoteCandidate?.candidateType || "unknown";
+                    const isRelayed = localType === "relay" || remoteType === "relay";
+                    const pathKind = isRelayed ? "RELAYED (TURN)" : "DIRECT (P2P)";
                     console.log(
-                        `[WebRTC] Active candidate pair for ${targetId}: ` +
-                        `Local (${localCandidate?.candidateType || "unknown"}, ${localCandidate?.protocol || "unknown"}) <-> ` +
-                        `Remote (${remoteCandidate?.candidateType || "unknown"}, ${remoteCandidate?.protocol || "unknown"})`
+                        `[WebRTC] Active candidate pair for peer ${targetId} [${pathKind}]: ` +
+                        `Local (${localType}, ${localCandidate?.protocol || "unknown"}) <-> ` +
+                        `Remote (${remoteType}, ${remoteCandidate?.protocol || "unknown"})`
                     );
                 }
             }
@@ -64,7 +68,11 @@ export function createPeerConnection(targetId, sendSignaling, onPeerListUpdate, 
     pc.onicecandidate = (event) => {
         if (event.candidate) {
             const type = event.candidate.type || "unknown";
-            console.log(`[ICE_SENT] Local candidate gathered for peer ${targetId} [type: ${type}]`);
+            if (type === "relay") {
+                console.log(`[ICE] Relay candidate gathered for peer ${targetId} [type: relay]`);
+            } else {
+                console.log(`[ICE_SENT] Local candidate gathered for peer ${targetId} [type: ${type}]`);
+            }
             if (typeof sendSignaling === "function") {
                 sendSignaling({
                     type: "candidate",
