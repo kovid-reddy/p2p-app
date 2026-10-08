@@ -118,39 +118,45 @@ function connect() {
 
         try {
             if (data.type === "offer") {
-                console.log(`[OFFER_RECEIVED] Received WebRTC offer from peer ${data.from}`);
+                console.log(`[WEBRTC][SIGNAL] received offer from ${data.from}`);
                 const peer = getOrCreatePeer(data.from);
 
                 // Deterministic Glare / Simultaneous Offer Handling
                 if (peer.connection && peer.connection.signalingState !== "stable") {
                     const isPolite = myId ? myId > data.from : true;
                     if (!isPolite) {
-                        console.log(`[GLARE_TIE_BREAKER] Local offer has precedence over incoming offer from peer ${data.from}. Ignoring incoming offer.`);
+                        console.log(`[WEBRTC][GLARE_TIE_BREAKER] Local offer has precedence over incoming offer from peer ${data.from}. Ignoring incoming offer.`);
                         return;
                     }
-                    console.log(`[GLARE_TIE_BREAKER] Polite peer accepting incoming offer from peer ${data.from}. Replacing local offer connection.`);
+                    console.log(`[WEBRTC][GLARE_TIE_BREAKER] Polite peer accepting incoming offer from peer ${data.from}. Replacing local offer connection.`);
                 }
 
+                console.log(`[WEBRTC] creating peer connection`);
                 const pc = createPeerConnection(data.from, sendSignaling, callbacks.onPeerListUpdate, true);
                 const sdp = typeof RTCSessionDescription !== "undefined" ? new RTCSessionDescription(data.offer) : data.offer;
+                console.log(`[WEBRTC] setting remote offer`);
                 await pc.setRemoteDescription(sdp);
                 await flushQueuedIceCandidates(data.from);
+                console.log(`[WEBRTC] creating answer`);
                 const answer = await pc.createAnswer();
+                console.log(`[WEBRTC] setting local answer`);
                 await pc.setLocalDescription(answer);
-                console.log(`[ANSWER_SENT] Sent WebRTC answer to peer ${data.from}`);
+                console.log(`[WEBRTC] sending answer`);
                 sendSignaling({ type: "answer", target: data.from, answer: pc.localDescription });
             } else if (data.type === "answer") {
-                console.log(`[ANSWER_RECEIVED] Received WebRTC answer from peer ${data.from}`);
+                console.log(`[WEBRTC][SIGNAL] received answer from ${data.from}`);
+                console.log(`[WEBRTC] answer received`);
                 const peer = peers.get(data.from);
                 if (peer?.connection && peer.connection.signalingState === "have-local-offer") {
                     const sdp = typeof RTCSessionDescription !== "undefined" ? new RTCSessionDescription(data.answer) : data.answer;
                     await peer.connection.setRemoteDescription(sdp);
                     await flushQueuedIceCandidates(data.from);
+                    console.log(`[WEBRTC] remote description set`);
                 } else {
-                    console.log(`[ANSWER_SKIPPED] Unexpected answer from peer ${data.from} [signalingState: ${peer?.connection?.signalingState}]`);
+                    console.log(`[WEBRTC][ANSWER_SKIPPED] Unexpected answer from peer ${data.from} [signalingState: ${peer?.connection?.signalingState}]`);
                 }
             } else if (data.type === "candidate" && data.candidate) {
-                console.log(`[ICE_RECEIVED] Received ICE candidate from peer ${data.from}`);
+                console.log(`[WEBRTC][SIGNAL] received candidate from ${data.from}`);
                 await addOrQueueIceCandidate(data.from, data.candidate);
             }
         } catch (error) {

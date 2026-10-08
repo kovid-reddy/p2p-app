@@ -5,6 +5,13 @@ import { handleReadyMessage, handleRejectTransferMessage } from "../transfer/sen
 import { resetTransfer } from "../transfer/transferCleanup.js";
 import { updateStatus } from "../ui/transferUI.js";
 import { initiateKeyExchange, handleKeyExchangeMessage } from "../core/keyExchange.js";
+import {
+    serializePacket,
+    parseAndValidatePacket,
+    createPingPacket,
+    createPongPacket,
+    createTestMessagePacket
+} from "./packetProtocol.js";
 
 export function setupDataChannel(targetId, dataChannel, onPeerListUpdate) {
     const peer = getOrCreatePeer(targetId);
@@ -21,6 +28,15 @@ export function setupDataChannel(targetId, dataChannel, onPeerListUpdate) {
         if (typeof onPeerListUpdate === "function") {
             onPeerListUpdate({ peerId: targetId, state: "connected", becameActive });
         }
+
+        // Stage 6 — Raw Packet Exchange Test
+        const testPkt = createTestMessagePacket("Hello from browser");
+        console.log(`[PACKET] Sending packet (type="${testPkt.type}", id="${testPkt.id}") to peer ${targetId}`);
+        try { dataChannel.send(serializePacket(testPkt)); } catch (e) { console.warn("Failed to send test packet:", e); }
+
+        const pingPkt = createPingPacket();
+        console.log(`[PACKET] Sending packet (type="${pingPkt.type}", id="${pingPkt.id}") to peer ${targetId}`);
+        try { dataChannel.send(serializePacket(pingPkt)); } catch (e) { console.warn("Failed to send ping packet:", e); }
 
         // Trigger E2EE Key Exchange over DataChannel
         await initiateKeyExchange(targetId);
@@ -52,8 +68,36 @@ export function setupDataChannel(targetId, dataChannel, onPeerListUpdate) {
 }
 
 async function dispatchDataChannelMessage(targetId, dataChannel, eventData, peer) {
-    /* ---------- STRING (JSON) MESSAGES ---------- */
+    /* ---------- STRING (JSON / PACKET) MESSAGES ---------- */
     if (typeof eventData === "string") {
+        // Stage 6 Packet Protocol check
+        const pktRes = parseAndValidatePacket(eventData);
+        if (pktRes.valid) {
+            const pkt = pktRes.packet;
+            console.log(`[PACKET] Received packet (type="${pkt.type}", id="${pkt.id}") from peer ${targetId}`);
+            console.log(`[PACKET] Packet validation successful`);
+
+            if (pkt.type === "test-message") {
+                console.log(`[PACKET] Received test-message payload from peer ${targetId}:`, pkt.payload);
+                return;
+            }
+
+            if (pkt.type === "ping") {
+                console.log(`[PACKET] Received PING packet from peer ${targetId}, sending PONG packet`);
+                const pongPkt = createPongPacket(pkt.id);
+                console.log(`[PACKET] Sending packet (type="${pongPkt.type}", id="${pongPkt.id}") to peer ${targetId}`);
+                dataChannel.send(serializePacket(pongPkt));
+                return;
+            }
+
+            if (pkt.type === "pong") {
+                console.log(`[PACKET] PONG received`);
+                console.log(`[PACKET] Round trip SUCCESS`);
+                return;
+            }
+        }
+
+        // Legacy / fallback JSON handling
         let data;
         try {
             data = JSON.parse(eventData);

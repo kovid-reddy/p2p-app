@@ -48,11 +48,15 @@ function presenceHarness() {
     return { handler, messagesFor, clearMessages };
 }
 
-test("$connect enforces the configured origin", async () => {
+test("$connect enforces the configured origin for browsers and allows native clients without Origin", async () => {
     const { handler } = harness();
     const denied = await handler({ ...event("$connect"), headers: { origin: "https://evil.example" } });
     assert.equal(denied.statusCode, 403);
     assert.equal((await handler(event("$connect"))).statusCode, 200);
+
+    // Native Flutter/mobile client without Origin header is allowed
+    const nativeClient = await handler({ ...event("$connect"), headers: {} });
+    assert.equal(nativeClient.statusCode, 200);
 });
 
 test("register rejects an invalid peer ID", async () => {

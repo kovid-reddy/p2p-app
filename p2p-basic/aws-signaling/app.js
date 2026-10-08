@@ -28,7 +28,9 @@ function parseBody(event) {
 
 function allowedOrigin(event, allowedOrigins) {
     if (!allowedOrigins.length) return true;
-    return allowedOrigins.includes(event.headers?.origin || event.headers?.Origin);
+    const origin = event.headers?.origin || event.headers?.Origin;
+    if (!origin) return true; // Native clients (Flutter/mobile) omit the Origin header.
+    return allowedOrigins.includes(origin);
 }
 
 function endpoint(event) {

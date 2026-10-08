@@ -63,15 +63,15 @@ export function createPeerConnection(targetId, sendSignaling, onPeerListUpdate, 
     peer.pendingIceCandidates = [];
     peer.processedCandidates.clear();
 
-    console.log(`[CONNECTION_CREATED] Created new RTCPeerConnection for peer ${targetId} [total connections for peer: 1]`);
+    console.log(`[WEBRTC] [CONNECTION_CREATED] Created new RTCPeerConnection for peer ${targetId} [total connections for peer: 1]`);
 
     pc.onicecandidate = (event) => {
         if (event.candidate) {
             const type = event.candidate.type || "unknown";
             if (type === "relay") {
-                console.log(`[ICE] Relay candidate gathered for peer ${targetId} [type: relay]`);
+                console.log(`[WEBRTC][ICE] Relay candidate gathered for peer ${targetId} [type: relay]`);
             } else {
-                console.log(`[ICE_SENT] Local candidate gathered for peer ${targetId} [type: ${type}]`);
+                console.log(`[WEBRTC][ICE] Local candidate gathered for peer ${targetId} [type: ${type}]`);
             }
             if (typeof sendSignaling === "function") {
                 sendSignaling({
@@ -82,12 +82,12 @@ export function createPeerConnection(targetId, sendSignaling, onPeerListUpdate, 
                 });
             }
         } else {
-            console.log(`[ICE] Local candidate gathering complete for peer ${targetId}`);
+            console.log(`[WEBRTC][ICE] Local candidate gathering complete for peer ${targetId}`);
         }
     };
 
     pc.oniceconnectionstatechange = () => {
-        console.log(`[ICE_STATE] Connection state with peer ${targetId}: ${pc.iceConnectionState}`);
+        console.log(`[WEBRTC][STATE] iceConnectionState with peer ${targetId}: ${pc.iceConnectionState}`);
         if (pc.iceConnectionState === "failed") peer.networkState = "failed";
         if (pc.iceConnectionState === "disconnected") peer.networkState = "disconnected";
         if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") peer.networkState = "connected";
@@ -98,13 +98,21 @@ export function createPeerConnection(targetId, sendSignaling, onPeerListUpdate, 
     };
 
     pc.onconnectionstatechange = () => {
-        console.log(`[CONNECTION_STATE] Peer connection state with peer ${targetId}: ${pc.connectionState}`);
+        console.log(`[WEBRTC][STATE] connectionState with peer ${targetId}: ${pc.connectionState}`);
         peer.networkState = pc.connectionState;
         onPeerListUpdate?.();
     };
 
+    pc.onsignalingstatechange = () => {
+        console.log(`[WEBRTC][STATE] signalingState with peer ${targetId}: ${pc.signalingState}`);
+    };
+
+    pc.onicegatheringstatechange = () => {
+        console.log(`[WEBRTC][STATE] iceGatheringState with peer ${targetId}: ${pc.iceGatheringState}`);
+    };
+
     pc.ondatachannel = (event) => {
-        console.log(`[DATA_CHANNEL_RECEIVED] Remote DataChannel received from peer ${targetId} [label: ${event.channel?.label}]`);
+        console.log(`[WEBRTC][DATA_CHANNEL_RECEIVED] Remote DataChannel received from peer ${targetId} [label: ${event.channel?.label}]`);
         setupDataChannel(targetId, event.channel, onPeerListUpdate);
     };
 
@@ -123,23 +131,23 @@ export async function addOrQueueIceCandidate(targetId, candidate) {
 
     const candStr = typeof candidate.candidate === "string" ? candidate.candidate : JSON.stringify(candidate);
     if (peer.processedCandidates.has(candStr)) {
-        console.log(`[ICE_SKIPPED_DUPLICATE] Skipping duplicate ICE candidate for peer ${targetId}`);
+        console.log(`[WEBRTC][ICE_SKIPPED_DUPLICATE] Skipping duplicate ICE candidate for peer ${targetId}`);
         return;
     }
     peer.processedCandidates.add(candStr);
 
     if (!peer.connection || !peer.connection.remoteDescription) {
-        console.log(`[ICE_QUEUED] Queuing remote ICE candidate for peer ${targetId} (remoteDescription not ready)`);
+        console.log(`[WEBRTC][ICE_QUEUED] Queuing remote ICE candidate for peer ${targetId} (remoteDescription not ready)`);
         peer.pendingIceCandidates.push(candidate);
         return;
     }
 
     try {
-        console.log(`[ICE_RECEIVED] Adding remote ICE candidate for peer ${targetId}`);
+        console.log(`[WEBRTC][ICE_RECEIVED] Adding remote ICE candidate for peer ${targetId}`);
         const iceCandidate = typeof RTCIceCandidate !== "undefined" ? new RTCIceCandidate(candidate) : candidate;
         await peer.connection.addIceCandidate(iceCandidate);
     } catch (err) {
-        console.warn(`[ICE_ADD_FAILED] Failed to add ICE candidate for peer ${targetId}: ${err.message}`);
+        console.warn(`[WEBRTC][ICE_ADD_FAILED] Failed to add ICE candidate for peer ${targetId}: ${err.message}`);
     }
 }
 
@@ -152,16 +160,16 @@ export async function flushQueuedIceCandidates(targetId) {
 
     const pending = peer.pendingIceCandidates.splice(0);
     if (pending.length > 0) {
-        console.log(`[ICE_FLUSHING] Flushing ${pending.length} queued ICE candidate(s) for peer ${targetId}`);
+        console.log(`[WEBRTC][ICE_FLUSHING] Flushing ${pending.length} queued ICE candidate(s) for peer ${targetId}`);
     }
 
     for (const candidate of pending) {
         try {
             const iceCandidate = typeof RTCIceCandidate !== "undefined" ? new RTCIceCandidate(candidate) : candidate;
             await peer.connection.addIceCandidate(iceCandidate);
-            console.log(`[ICE_FLUSHED] Successfully applied queued ICE candidate for peer ${targetId}`);
+            console.log(`[WEBRTC][ICE_FLUSHED] Successfully applied queued ICE candidate for peer ${targetId}`);
         } catch (err) {
-            console.warn(`[ICE_ADD_FAILED] Failed to apply queued ICE candidate for peer ${targetId}: ${err.message}`);
+            console.warn(`[WEBRTC][ICE_ADD_FAILED] Failed to apply queued ICE candidate for peer ${targetId}: ${err.message}`);
         }
     }
 }
@@ -174,23 +182,27 @@ export async function connectToPeer(targetId, sendSignaling, onPeerListUpdate) {
 
     // Prevent duplicate outgoing offer if connection or DataChannel is already active
     if (peer.connection && peer.dataChannel && peer.dataChannel.readyState === "open") {
-        console.log(`[OFFER_SKIPPED] DataChannel already open with peer ${targetId}`);
+        console.log(`[WEBRTC][OFFER_SKIPPED] DataChannel already open with peer ${targetId}`);
         return;
     }
 
     if (peer.connection && peer.connection.signalingState === "have-local-offer") {
-        console.log(`[OFFER_SKIPPED] Local offer already in flight for peer ${targetId}`);
+        console.log(`[WEBRTC][OFFER_SKIPPED] Local offer already in flight for peer ${targetId}`);
         return;
     }
 
+    console.log(`[WEBRTC] creating peer connection for target ${targetId}`);
     const pc = createPeerConnection(targetId, sendSignaling, onPeerListUpdate, true);
     const dc = pc.createDataChannel("chat");
     setupDataChannel(targetId, dc, onPeerListUpdate);
 
+    console.log(`[WEBRTC] creating offer for peer ${targetId}`);
     const offer = await pc.createOffer();
+    console.log(`[WEBRTC] setting local offer for peer ${targetId}`);
     await pc.setLocalDescription(offer);
+    console.log(`[WEBRTC] offer created for peer ${targetId}`);
 
-    console.log(`[OFFER_SENT] Sent WebRTC offer to peer ${targetId}`);
+    console.log(`[WEBRTC] sending offer to peer ${targetId}`);
 
     if (typeof sendSignaling === "function") {
         sendSignaling({
